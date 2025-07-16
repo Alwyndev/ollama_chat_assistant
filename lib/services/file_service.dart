@@ -2,8 +2,11 @@ import 'dart:typed_data';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:image/image.dart' as img;
 import 'package:mime/mime.dart';
+import 'ocr_service.dart';
 
 class FileService {
+  final OcrService _ocrService = OcrService();
+
   /// Extracts text from various file types
   /// Supports: PDF, TXT, code files, images, and other text-based formats
   Future<String> extractTextFromFile(
@@ -210,18 +213,28 @@ class FileService {
 
   Future<String> _extractTextFromImage(List<int> fileBytes) async {
     try {
-      final image = img.decodeImage(Uint8List.fromList(fileBytes));
-      if (image == null) {
-        return 'Could not decode image';
+      // Use OCR service to extract text from image
+      final extractedText = await _ocrService.extractTextFromImage(fileBytes);
+
+      if (extractedText.startsWith('Error:') ||
+          extractedText.startsWith('No text found')) {
+        // If OCR fails or no text found, provide fallback information
+        final image = img.decodeImage(Uint8List.fromList(fileBytes));
+        if (image == null) {
+          return 'Could not decode image';
+        }
+
+        return '$extractedText\n\nImage details: ${image.width}x${image.height} pixels, Format: ${image.format}';
       }
 
-      // For now, return basic image information
-      // In a real implementation, you might want to use OCR
-      return 'Image detected: ${image.width}x${image.height} pixels\n'
-          'Format: ${image.format}\n'
-          'Note: OCR text extraction not implemented yet';
+      return extractedText;
     } catch (e) {
-      return 'Error processing image: $e';
+      return 'Error processing image with OCR: $e';
     }
+  }
+
+  /// Disposes the OCR service to free up resources
+  void dispose() {
+    _ocrService.dispose();
   }
 }

@@ -6,6 +6,7 @@ class MessageInput extends StatelessWidget {
   final Function() onSend;
   final Function() onPickFile;
   final Function() onPickImage;
+  final Function() onOcr;
 
   const MessageInput({
     super.key,
@@ -14,6 +15,7 @@ class MessageInput extends StatelessWidget {
     required this.onSend,
     required this.onPickFile,
     required this.onPickImage,
+    required this.onOcr,
   });
 
   @override
@@ -30,15 +32,38 @@ class MessageInput extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.attach_file),
-            onPressed: isLoading ? null : onPickFile,
-            tooltip: 'Attach file',
-          ),
-          IconButton(
-            icon: const Icon(Icons.image),
-            onPressed: isLoading ? null : onPickImage,
-            tooltip: 'Attach image',
+          PopupMenuButton<int>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More actions',
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 0,
+                child: ListTile(
+                  leading: const Icon(Icons.attach_file),
+                  title: const Text('Attach file'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 1,
+                child: ListTile(
+                  leading: const Icon(Icons.image),
+                  title: const Text('Attach image'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 2,
+                child: ListTile(
+                  leading: const Icon(Icons.document_scanner),
+                  title: const Text('OCR - Extract text from image'),
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              if (isLoading) return;
+              if (value == 0) onPickFile();
+              if (value == 1) onPickImage();
+              if (value == 2) onOcr();
+            },
           ),
           Expanded(
             child: TextField(

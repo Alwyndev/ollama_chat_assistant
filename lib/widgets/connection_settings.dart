@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/server_config.dart';
+import 'model_selector.dart';
 
 class ConnectionSettings extends StatefulWidget {
   final ServerConfig serverConfig;
@@ -8,6 +9,9 @@ class ConnectionSettings extends StatefulWidget {
   final Function() onTestConnection;
   final Function() onReset;
   final bool isTestingConnection;
+  final String selectedModel;
+  final Map<String, String> availableModels;
+  final Function(String?) onModelChanged;
 
   const ConnectionSettings({
     super.key,
@@ -17,6 +21,9 @@ class ConnectionSettings extends StatefulWidget {
     required this.onTestConnection,
     required this.onReset,
     required this.isTestingConnection,
+    required this.selectedModel,
+    required this.availableModels,
+    required this.onModelChanged,
   });
 
   @override
@@ -95,6 +102,11 @@ class _ConnectionSettingsState extends State<ConnectionSettings> {
             textInputAction: TextInputAction.done,
           ),
           const SizedBox(height: 16),
+          ModelSelector(
+            selectedModel: widget.selectedModel,
+            availableModels: widget.availableModels,
+            onChanged: widget.onModelChanged,
+          ),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -164,6 +176,12 @@ class _ConnectionSettingsState extends State<ConnectionSettings> {
                               port: portController.text.trim(),
                             );
                             widget.onSave(newConfig);
+                            // Show loading indicator and wait for connection test result
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Testing connection...'),
+                              ),
+                            );
                           },
                     icon: widget.isTestingConnection
                         ? const SizedBox(

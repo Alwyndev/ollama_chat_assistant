@@ -222,3 +222,29 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Note**: This app requires Ollama to be running on the user's computer. The app itself doesn't require internet access and all data stays local.
+
+## OCR Feature
+
+The app now includes OCR (Optical Character Recognition) functionality that allows you to:
+
+- **Extract text from images** using your device's camera
+- **Process images from gallery** or file picker
+- **Automatically detect and recognize text** in various languages
+- **Send extracted text directly to the chat** for AI processing
+
+### How to use OCR:
+
+1. Tap the **document scanner icon** (📄) in the message input area
+2. Choose from three options:
+   - **Camera**: Take a photo of text to extract
+   - **Gallery**: Select an image from your device
+   - **File**: Pick an image file from storage
+3. The app will process the image and extract any readable text
+4. The extracted text will be automatically inserted into the message input
+5. You can then send it to the AI model for further processing
+
+### OCR Requirements:
+
+- **Android**: Requires Android 4.4 (API level 19) or higher
+- **iOS**: Requires iOS 12.0 or higher
+- **Internet connection**: Required for initial ML Kit model download (one-time)

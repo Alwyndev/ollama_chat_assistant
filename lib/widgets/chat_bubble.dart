@@ -52,76 +52,97 @@ class ChatBubble extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: message.isUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: message.isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
-          Flexible(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: borderRadius,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!message.isUser)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          message.isSystem
-                              ? "System"
-                              : message.isError
-                              ? "Error"
-                              : message.modelName ?? "Assistant",
-                          style: TextStyle(
-                            color: textColor.withValues(alpha: 0.8),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    if (message.isFile)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            message.fileName ?? 'File',
-                            style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
+          Row(
+            mainAxisAlignment: message.isUser
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            children: [
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: borderRadius,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!message.isUser)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              message.isSystem
+                                  ? "System"
+                                  : message.isError
+                                  ? "Error"
+                                  : message.modelName ?? "Assistant",
+                              style: TextStyle(
+                                color: textColor.withValues(alpha: 0.8),
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          if (message.mimeType?.startsWith('image/') ?? false)
-                            Container(
-                              height: 150,
-                              decoration: BoxDecoration(
-                                image: DecorationImage(
-                                  image: MemoryImage(
-                                    Uint8List.fromList(message.fileBytes!),
-                                  ),
-                                  fit: BoxFit.contain,
+                        if (message.isFile)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                message.fileName ?? 'File',
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            )
-                          else
-                            _buildFormattedText(
-                              message.text,
-                              textColor,
-                              context,
-                            ),
-                        ],
-                      )
-                    else
-                      _buildFormattedText(message.text, textColor, context),
-                  ],
+                              const SizedBox(height: 8),
+                              if (message.mimeType?.startsWith('image/') ??
+                                  false)
+                                Container(
+                                  height: 150,
+                                  decoration: BoxDecoration(
+                                    image: DecorationImage(
+                                      image: MemoryImage(
+                                        Uint8List.fromList(message.fileBytes!),
+                                      ),
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                )
+                              else
+                                _buildFormattedText(
+                                  message.text,
+                                  textColor,
+                                  context,
+                                ),
+                            ],
+                          )
+                        else
+                          _buildFormattedText(message.text, textColor, context),
+                      ],
+                    ),
+                  ),
                 ),
               ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2, left: 8, right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              tooltip: 'Copy',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: message.text));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Message copied to clipboard')),
+                );
+              },
             ),
           ),
         ],

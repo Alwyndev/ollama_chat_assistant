@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ollama_assistant/services/file_service.dart';
 // Make sure this import points to the file where FileService is defined.
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,7 +14,11 @@ import '../widgets/chat_bubble.dart';
 import '../widgets/connection_settings.dart';
 import '../widgets/model_selector.dart';
 import '../widgets/message_input.dart';
+import '../widgets/ocr_widget.dart';
 import 'dart:io';
+
+// Add connection status enum at the top level
+enum ConnectionStatus { notConnected, connecting, connected }
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -27,6 +30,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final List<ChatMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
   bool _isTestingConnection = false;
   String _selectedModel = 'phi3:latest';
@@ -51,11 +55,13 @@ class _ChatScreenState extends State<ChatScreen> {
     "codellama:latest": "CodeLLaMA - For coding tasks",
   };
 
+  // Add connection status enum
+  ConnectionStatus _connectionStatus = ConnectionStatus.connected;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
-    _addSystemMessage("Welcome to Ollama Chat Assistant!");
 
     // Initialize memories for all models
     for (var model in _availableModels.keys) {
@@ -68,7 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final savedIp = prefs.getString('server_ip');
     final savedPort = prefs.getString('server_port');
 
-    print('Loading settings: IP=$savedIp, Port=$savedPort');
+    debugPrint('Loading settings: IP=$savedIp, Port=$savedPort');
 
     setState(() {
       _serverConfig = ServerConfig(
@@ -84,29 +90,31 @@ class _ChatScreenState extends State<ChatScreen> {
       bool isPhysical = false;
       if (info is AndroidDeviceInfo) {
         isPhysical = info.isPhysicalDevice;
-        print('Android device detected: ${info.model}, Physical: $isPhysical');
+        debugPrint(
+          'Android device detected: ${info.model}, Physical: $isPhysical',
+        );
       } else if (info is IosDeviceInfo) {
         isPhysical = info.isPhysicalDevice;
-        print('iOS device detected: ${info.model}, Physical: $isPhysical');
+        debugPrint('iOS device detected: ${info.model}, Physical: $isPhysical');
       }
       if (isPhysical) {
         setState(() {
           _showConnectionSettings = true;
         });
-        print('Physical device detected - showing connection settings');
+        debugPrint('Physical device detected - showing connection settings');
       }
     }
   }
 
   Future<void> _saveSettings(ServerConfig newConfig) async {
-    print('Saving settings: IP=${newConfig.ip}, Port=${newConfig.port}');
+    debugPrint('Saving settings: IP=${newConfig.ip}, Port=${newConfig.port}');
 
     // Always save the settings first, regardless of connection test
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('server_ip', newConfig.ip);
     await prefs.setString('server_port', newConfig.port);
 
-    print(
+    debugPrint(
       'Settings saved to storage: IP=${newConfig.ip}, Port=${newConfig.port}',
     );
 
@@ -127,32 +135,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!isConnected) {
       _addErrorMessage("Failed to connect to server at ${newConfig.baseUrl}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Connection failed to ${newConfig.baseUrl}\nSettings saved but connection failed',
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Connection failed to ${newConfig.baseUrl}\nSettings saved but connection failed',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
           ),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+        );
+      }
       // Don't hide connection settings if connection fails
       return;
     }
 
-    print('Connection test successful to ${newConfig.baseUrl}');
+    debugPrint('Connection test successful to ${newConfig.baseUrl}');
 
     setState(() {
       _showConnectionSettings = false;
     });
 
     _addSystemMessage("Connection settings updated and verified");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Connected to ${newConfig.baseUrl}'),
-        backgroundColor: Colors.green,
-      ),
-    );
   }
 
   Future<void> _clearSettings() async {
@@ -160,25 +164,37 @@ class _ChatScreenState extends State<ChatScreen> {
     await prefs.remove('server_ip');
     await prefs.remove('server_port');
 
-    print('Settings cleared from storage');
+    debugPrint('Settings cleared from storage');
 
     setState(() {
       _serverConfig = ServerConfig(ip: 'localhost', port: '11434');
       _apiService.serverConfig = _serverConfig;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Settings reset to default'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Settings reset to default'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
   }
 
   void _addSystemMessage(String text) {
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: false, isSystem: true));
     });
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -192,7 +208,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       _isLoading = true;
     });
-
+    _scrollToBottom();
     _textController.clear();
 
     try {
@@ -219,6 +235,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       });
+      _scrollToBottom();
     } catch (e) {
       _addErrorMessage('Error: $e\nPlease check server settings');
       setState(() {
@@ -424,6 +441,25 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _showOcrDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: OcrWidget(
+            onTextExtracted: (String extractedText) {
+              Navigator.of(context).pop();
+              _textController.text = extractedText;
+              // Optionally auto-send the extracted text
+              // _sendMessage();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   void _changeModel(String? newValue) {
     if (newValue == null || newValue == _selectedModel) return;
 
@@ -446,12 +482,112 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _showSettingsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Connection Settings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (context) => Padding(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom,
+                      ),
+                      child: ConnectionSettings(
+                        serverConfig: _serverConfig,
+                        onSave: _saveSettings,
+                        onCancel: () => Navigator.of(context).pop(),
+                        onReset: _clearSettings,
+                        onTestConnection: () async {
+                          setState(() {
+                            _isTestingConnection = true;
+                            _connectionStatus = ConnectionStatus.connecting;
+                          });
+                          final isConnected = await _apiService
+                              .testConnection();
+                          setState(() {
+                            _isTestingConnection = false;
+                            _connectionStatus = isConnected
+                                ? ConnectionStatus.connected
+                                : ConnectionStatus.notConnected;
+                          });
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.circle,
+                                      color: isConnected
+                                          ? Colors.green
+                                          : Colors.red,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      isConnected
+                                          ? 'Connection successful!'
+                                          : 'Connection failed',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        isTestingConnection: _isTestingConnection,
+                        selectedModel: _selectedModel,
+                        availableModels: _availableModels,
+                        onModelChanged: _changeModel,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.model_training),
+                title: const Text('Model Selection'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (context) => Padding(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom,
+                      ),
+                      child: ModelSelector(
+                        selectedModel: _selectedModel,
+                        availableModels: _availableModels,
+                        onChanged: _changeModel,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Ollama Chat Assistant'),
         centerTitle: true,
@@ -467,10 +603,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Current IP: ${_serverConfig.ip}'),
-                      Text('Current Port: ${_serverConfig.port}'),
-                      Text('Base URL: ${_serverConfig.baseUrl}'),
-                      Text('Show Settings: $_showConnectionSettings'),
+                      Text('Current IP: \\${_serverConfig.ip}'),
+                      Text('Current Port: \\${_serverConfig.port}'),
+                      Text('Base URL: \\${_serverConfig.baseUrl}'),
+                      Text('Show Settings: \\$_showConnectionSettings'),
                       const SizedBox(height: 16),
                       const Text(
                         'To reset settings, use the Reset button in connection settings.',
@@ -489,67 +625,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () {
-              setState(() {
-                _showConnectionSettings = !_showConnectionSettings;
-              });
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.copy_all),
-            onPressed: () {
-              final chatText = _messages
-                  .map(
-                    (m) =>
-                        '${m.isUser ? "You" : m.modelName ?? "System"}: ${m.text}',
-                  )
-                  .join('\n\n');
-              Clipboard.setData(ClipboardData(text: chatText));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat copied to clipboard')),
-              );
-            },
+            onPressed: _showSettingsModal,
           ),
         ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            if (_showConnectionSettings)
-              ConnectionSettings(
-                serverConfig: _serverConfig,
-                onSave: _saveSettings,
-                onCancel: () {
-                  setState(() {
-                    _showConnectionSettings = false;
-                  });
-                },
-                onReset: _clearSettings,
-                onTestConnection: () async {
-                  setState(() {
-                    _isTestingConnection = true;
-                  });
-                  final isConnected = await _apiService.testConnection();
-                  setState(() {
-                    _isTestingConnection = false;
-                  });
-                  if (isConnected) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Connection successful!')),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Connection failed')),
-                    );
-                  }
-                },
-                isTestingConnection: _isTestingConnection,
-              ),
-            ModelSelector(
-              selectedModel: _selectedModel,
-              availableModels: _availableModels,
-              onChanged: _changeModel,
-            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -559,54 +641,46 @@ class _ChatScreenState extends State<ChatScreen> {
                     : colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                _availableModels[_selectedModel]!,
-                style: TextStyle(
-                  color: isDarkMode
-                      ? colorScheme.onSurfaceVariant
-                      : colorScheme.onPrimaryContainer,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 children: [
                   Icon(
                     Icons.circle,
                     size: 12,
-                    color: _showConnectionSettings
+                    color: _isTestingConnection
                         ? Colors.orange
-                        : Colors.green,
+                        : _connectionStatus == ConnectionStatus.connected
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _selectedModel,
+                    style: TextStyle(
+                      color: isDarkMode
+                          ? colorScheme.onSurfaceVariant
+                          : colorScheme.onPrimaryContainer,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _showConnectionSettings
-                          ? 'Configure connection'
-                          : 'Connected to: ${_serverConfig.baseUrl}',
-                      style: const TextStyle(fontSize: 12),
+                      _availableModels[_selectedModel]!,
+                      style: TextStyle(
+                        color: isDarkMode
+                            ? colorScheme.onSurfaceVariant
+                            : colorScheme.onPrimaryContainer,
+                        fontStyle: FontStyle.italic,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (!_showConnectionSettings)
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _showConnectionSettings = true;
-                        });
-                      },
-                      child: const Text(
-                        'Change',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
                 ],
               ),
             ),
             Expanded(
               child: ListView.builder(
+                controller: _scrollController,
                 reverse: false,
                 padding: const EdgeInsets.all(8),
                 itemCount: _messages.length,
@@ -626,6 +700,7 @@ class _ChatScreenState extends State<ChatScreen> {
               onSend: _sendMessage,
               onPickFile: _pickFile,
               onPickImage: _pickImage,
+              onOcr: _showOcrDialog,
             ),
           ],
         ),
